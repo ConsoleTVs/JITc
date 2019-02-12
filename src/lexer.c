@@ -1,4 +1,5 @@
 #include "../include/lexer.h"
+#include "../include/errors.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -93,6 +94,7 @@ bool lexer_next_token(Lexer *lexer, Token *token)
             // Determine if it's a number or an identifier.
             if (IS_NUMBER(*lexer->current)) { lexer_is_number(lexer, token); break; }
             else if (IS_ALPHA(*lexer->current)) { lexer_is_identifier(lexer, token); break; }
+            error(ERROR_UNKNOWN_TOKEN, "test.txt", 3, "Check if the token exists");
         }
     }
     lexer->current++;

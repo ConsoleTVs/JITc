@@ -24,4 +24,4 @@ set (CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 # Setup the final executable.
-add_executable (JITc JITc.c src/lexer.c src/parser.c src/compiler.c)
+add_executable (JITc JITc.c src/lexer.c src/parser.c src/compiler.c src/errors.c)

@@ -31,7 +31,7 @@
 int main(int argc, char *argv[])
 {
     Lexer lexer;
-    lexer_init(&lexer, "int variable_name");
+    lexer_init(&lexer, "int variable_name !");
     Tokens tokens;
     lexer_scan_all(&lexer, &tokens);
     print_tokens(&tokens);
