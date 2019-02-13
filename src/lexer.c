@@ -11,7 +11,7 @@
 
 static char *token_names[] = {
     "TOK_VARIABLE", "TOK_FUN", "TOK_RETURN", "TOK_INT", "TOK_FLOAT",
-    "TOK_ADD", "TOK_SUB", "TOK_MUL", "TOK_DIV", "TOK_LEFT_PAR",
+    "TOK_EQ", "TOK_ADD", "TOK_SUB", "TOK_MUL", "TOK_DIV", "TOK_LEFT_PAR",
     "TOK_RIGHT_PAR", "TOK_LEFT_BRACE", "TOK_RIGHT_BRACE", "TOK_SEMICOLON",
     "TOK_INT_TYPE"
 };
@@ -38,21 +38,33 @@ static void lexer_save_token(Lexer *lexer, Token *token, TokenType token_type) {
 static void lexer_is_number(Lexer *lexer, Token *token)
 {
     // Add the whole number.
-    while (IS_NUMBER(*lexer->current)) lexer->current++;
+    while (IS_NUMBER(*lexer->current)) {
+        lexer->col++;
+        lexer->current++;
+    }
     // Check to see if there's decimals.
     if (*lexer->current == '.' && IS_NUMBER(*(lexer->current + 1))) {
         lexer->current++; // The .
-        while (IS_NUMBER(*lexer->current)) lexer->current++;
+        lexer->col++;
+        while (IS_NUMBER(*lexer->current)) {
+            lexer->current++;
+            lexer->col++;
+        }
         lexer_save_token(lexer, token, TOK_FLOAT);
     }
     lexer->current--;
+    lexer->col--;
     lexer_save_token(lexer, token, TOK_INT);
 }
 
 static void lexer_is_identifier(Lexer *lexer, Token *token)
 {
-    while (IS_ALPHANUMERIC(*lexer->current)) lexer->current++;
+    while (IS_ALPHANUMERIC(*lexer->current)) {
+        lexer->current++;
+        lexer->col++;
+    }
     lexer->current--;
+    lexer->col--;
     lexer_save_token(lexer, token, TOK_VARIABLE);
     // Check to see if it's a reserved key word
     for (uint8_t i = 0; i < RESERVED_WORDS_NUM; i++) {
@@ -64,13 +76,41 @@ static void lexer_is_identifier(Lexer *lexer, Token *token)
     }
 }
 
-void lexer_init(Lexer *lexer, char *source)
+void lexer_init(Lexer *lexer, char *source, char *file)
 {
     // Set the source to the lexer.
-    lexer->source = source;
+    lexer->source = malloc(sizeof(char) * strlen(source) + 1);
+    strcpy(lexer->source, source);
+    lexer->file = malloc(sizeof(char) * strlen(file) + 1);
+    strcpy(lexer->file, file);
     // Set the lexer start char.
-    lexer->current = source;
-    lexer->start = source;
+    lexer->current = lexer->source;
+    lexer->start = lexer->source;
+    lexer->col = 0;
+    lexer->line = 0;
+}
+
+void lexer_init_file(Lexer *lexer, char *file)
+{
+    // Try opening the file.
+    FILE *source = fopen(file, "r");
+    // Check if there was an error opening the file.
+    if (source == NULL) {
+        red_printf(" > ");
+        printf("Unable to open the file '%s'\n", file);
+        exit(EXIT_FAILURE);
+    }
+    // Add the contents of the file to a buffer.
+    fseek(source, 0, SEEK_END);
+    size_t source_size = ftell(source);
+    rewind(source);
+    char *source_content = malloc(sizeof(char) * source_size + 1);
+    fread(source_content, sizeof(char), source_size, source);
+    source_content[source_size] = '\0';
+    fclose(source);
+    // Init the lexer.
+    lexer_init(lexer, source_content, file);
+    free(source_content);
 }
 
 bool lexer_next_token(Lexer *lexer, Token *token)
@@ -79,8 +119,10 @@ bool lexer_next_token(Lexer *lexer, Token *token)
     // We scan a token here.
     lexer_next_token_switch:
     switch (*lexer->current) {
-        case '\n': case '\r': { break; }
-        case ' ': { lexer->start++; lexer->current++; goto lexer_next_token_switch; }
+        case '\r': case '\t': { break; }
+        case '\n': { lexer->line++; lexer->col = 0; lexer->start++; lexer->current++; goto lexer_next_token_switch; }
+        case ' ': { lexer->start++; lexer->col++; lexer->current++; goto lexer_next_token_switch; }
+        case '=': { lexer_save_token(lexer, token, TOK_EQ); break; }
         case '+': { lexer_save_token(lexer, token, TOK_ADD); break; }
         case '-': { lexer_save_token(lexer, token, TOK_SUB); break; }
         case '*': { lexer_save_token(lexer, token, TOK_DIV); break; }
@@ -90,14 +132,19 @@ bool lexer_next_token(Lexer *lexer, Token *token)
         case '{': { lexer_save_token(lexer, token, TOK_LEFT_BRACE); break; }
         case '}': { lexer_save_token(lexer, token, TOK_RIGHT_BRACE); break; }
         case ';': { lexer_save_token(lexer, token, TOK_SEMICOLON); break; }
+        case '\0': { return false; }
         default: {
             // Determine if it's a number or an identifier.
             if (IS_NUMBER(*lexer->current)) { lexer_is_number(lexer, token); break; }
             else if (IS_ALPHA(*lexer->current)) { lexer_is_identifier(lexer, token); break; }
-            error(ERROR_UNKNOWN_TOKEN, "test.txt", 3, "Check if the token exists");
+            char err[] = "The token 'X' is unknown. Make sure to review the typed code.";
+            err[11] = *lexer->current;
+            error(ERROR_UNKNOWN_TOKEN, lexer->file, lexer->line, lexer->col, err);
+            exit(EXIT_FAILURE);
         }
     }
     lexer->current++;
+    lexer->col++;
     // Returning true as token is OK.
     return true;
 }
@@ -114,6 +161,24 @@ void lexer_scan_all(Lexer *lexer, Tokens *tokens)
         }
         tokens->count++;
     }
+}
+
+void lexer_delete(Lexer *lexer)
+{
+    // Remove the char *
+    free(lexer->source);
+    free(lexer->file);
+}
+
+void lexer_delete_tokens(Tokens *tokens)
+{
+    for (size_t i = 0; i < tokens->count; i++) lexer_delete_token(&tokens->list[i]);
+    free(tokens->list);
+}
+
+void lexer_delete_token(Token *token)
+{
+    free(token->string);
 }
 
 void print_tokens(Tokens *tokens)

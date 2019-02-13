@@ -27,11 +27,21 @@
 #include "include/lexer.h"
 #include "include/parser.h"
 #include "include/compiler.h"
+#include "include/errors.h"
+#include <stdlib.h>
+#include <stdio.h>
 
 int main(int argc, char *argv[])
 {
+    // Check the command line arguments.
+    if (argc < 2) {
+        red_printf(" > ");
+        printf("The command line usage is: path/to/executable path/to/source\n");
+        exit(EXIT_FAILURE);
+    }
+
     Lexer lexer;
-    lexer_init(&lexer, "int variable_name !");
+    lexer_init_file(&lexer, argv[1]);
     Tokens tokens;
     lexer_scan_all(&lexer, &tokens);
     print_tokens(&tokens);
