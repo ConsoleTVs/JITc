@@ -12,7 +12,7 @@
 static char *token_names[] = {
     "TOK_VARIABLE", "TOK_FUN", "TOK_RETURN", "TOK_INT", "TOK_FLOAT",
     "TOK_EQ", "TOK_ADD", "TOK_SUB", "TOK_MUL", "TOK_DIV", "TOK_LEFT_PAR",
-    "TOK_RIGHT_PAR", "TOK_LEFT_BRACE", "TOK_RIGHT_BRACE", "TOK_SEMICOLON",
+    "TOK_RIGHT_PAR", "TOK_LEFT_BRACE", "TOK_RIGHT_BRACE", "TOK_SEMICOLON", "TOK_COMMA",
     "TOK_INT_TYPE"
 };
 
@@ -105,7 +105,12 @@ void lexer_init_file(Lexer *lexer, char *file)
     size_t source_size = ftell(source);
     rewind(source);
     char *source_content = malloc(sizeof(char) * source_size + 1);
-    fread(source_content, sizeof(char), source_size, source);
+    size_t read_size = fread(source_content, sizeof(char), source_size, source);
+    if (read_size != source_size) {
+        red_printf(" > ");
+        printf("There was an error reading the file '%s'", file);
+        exit(EXIT_FAILURE);
+    }
     source_content[source_size] = '\0';
     fclose(source);
     // Init the lexer.
@@ -118,6 +123,7 @@ bool lexer_next_token(Lexer *lexer, Token *token)
     if (*lexer->current == '\0') return false;
     // We scan a token here.
     lexer_next_token_switch:
+    printf("%c\n", *lexer->current);
     switch (*lexer->current) {
         case '\r': case '\t': { break; }
         case '\n': { lexer->line++; lexer->col = 0; lexer->start++; lexer->current++; goto lexer_next_token_switch; }
@@ -132,6 +138,7 @@ bool lexer_next_token(Lexer *lexer, Token *token)
         case '{': { lexer_save_token(lexer, token, TOK_LEFT_BRACE); break; }
         case '}': { lexer_save_token(lexer, token, TOK_RIGHT_BRACE); break; }
         case ';': { lexer_save_token(lexer, token, TOK_SEMICOLON); break; }
+        case ',': { lexer_save_token(lexer, token, TOK_COMMA); break; }
         case '\0': { return false; }
         default: {
             // Determine if it's a number or an identifier.
