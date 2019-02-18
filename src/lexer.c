@@ -7,7 +7,7 @@
 #define IS_NUMBER(input) (input >= '0' && input <= '9')
 #define IS_ALPHA(input) ((input >= 'a' && input <= 'z') || (input >= 'A' && input <= 'Z') || input == '_')
 #define IS_ALPHANUMERIC(input) (IS_NUMBER(input) || IS_ALPHA(input))
-#define RESERVED_WORDS_NUM 3
+#define RESERVED_WORDS_NUM 4
 
 static char *token_names[] = {
     "TOK_VARIABLE", "TOK_FUN", "TOK_RETURN", "TOK_INT", "TOK_FLOAT",
@@ -18,14 +18,22 @@ static char *token_names[] = {
 
 typedef struct { char *key; TokenType type; } ReservedWord;
 static ReservedWord reserved_words[RESERVED_WORDS_NUM] = {
-    { "fun", TOK_FUN }, { "return", TOK_RETURN }, { "int", TOK_INT_TYPE },
+    { "fun", TOK_FUN }, { "return", TOK_RETURN }, { "int", TOK_INT_TYPE }, { "float", TOK_FLOAT_TYPE }
 };
 
-static void lexer_save_token(Lexer *lexer, Token *token, TokenType token_type) {
+static void lexer_save_token(Lexer *lexer, Token *token, TokenType token_type)
+{
     // Set the token type.
     token->type = token_type;
+    // Set the line and col it was found at.
+    token->line = lexer->line;
+    token->col = lexer->col;
     // Reserve the memory for the string.
-    token->string = malloc(sizeof(char) * (lexer->current - lexer->start + 2));
+    if (token->string == NULL) {
+        token->string = malloc(sizeof(char) * (lexer->current - lexer->start + 2));
+    } else {
+        token->string = realloc(token->string, sizeof(char) * (lexer->current - lexer->start + 2));
+    }
     // Add the string to the token
     // This basically gets the substring from (lexer->start - lexer->source)
     // with a length of (lexer->current - lexer->start)
@@ -123,7 +131,7 @@ bool lexer_next_token(Lexer *lexer, Token *token)
     if (*lexer->current == '\0') return false;
     // We scan a token here.
     lexer_next_token_switch:
-    printf("%c\n", *lexer->current);
+    // printf("%c\n", *lexer->current);
     switch (*lexer->current) {
         case '\r': case '\t': { break; }
         case '\n': { lexer->line++; lexer->col = 0; lexer->start++; lexer->current++; goto lexer_next_token_switch; }
@@ -139,14 +147,14 @@ bool lexer_next_token(Lexer *lexer, Token *token)
         case '}': { lexer_save_token(lexer, token, TOK_RIGHT_BRACE); break; }
         case ';': { lexer_save_token(lexer, token, TOK_SEMICOLON); break; }
         case ',': { lexer_save_token(lexer, token, TOK_COMMA); break; }
-        case '\0': { return false; }
+        case '\0': { lexer_save_token(lexer, token, TOK_EOF); return false; }
         default: {
             // Determine if it's a number or an identifier.
             if (IS_NUMBER(*lexer->current)) { lexer_is_number(lexer, token); break; }
             else if (IS_ALPHA(*lexer->current)) { lexer_is_identifier(lexer, token); break; }
             char err[] = "The token 'X' is unknown. Make sure to review the typed code.";
             err[11] = *lexer->current;
-            error(ERROR_UNKNOWN_TOKEN, lexer->file, lexer->line, lexer->col, err);
+            show_error(ERROR_UNKNOWN_TOKEN, lexer->file, lexer->line, lexer->col, err);
             exit(EXIT_FAILURE);
         }
     }
@@ -160,11 +168,13 @@ void lexer_scan_all(Lexer *lexer, Tokens *tokens)
 {
     // Reserve the memory where the tokens will be stored.
     tokens->list = malloc(sizeof(Token) * TOKENS_BLOCK);
-    tokens->count = 0;
     tokens->capacity = TOKENS_BLOCK;
-    while (lexer_next_token(lexer, &tokens->list[tokens->count])) {
-        if (tokens->capacity < tokens->count + 1) {
-            tokens = realloc(tokens, sizeof(Token) * (tokens->capacity += TOKENS_BLOCK));
+    tokens_init_tokens(tokens, 0);
+    while (lexer_next_token(lexer, tokens->list + tokens->count)) {
+        if (tokens->capacity < tokens->count + 2) {
+            size_t start_at = tokens->capacity;
+            tokens->list = realloc(tokens->list, sizeof(Token) * (tokens->capacity += TOKENS_BLOCK));
+            tokens_init_tokens(tokens, start_at);
         }
         tokens->count++;
     }
@@ -177,25 +187,45 @@ void lexer_delete(Lexer *lexer)
     free(lexer->file);
 }
 
-void lexer_delete_tokens(Tokens *tokens)
+void tokens_init(Tokens *tokens)
 {
-    for (size_t i = 0; i < tokens->count; i++) lexer_delete_token(&tokens->list[i]);
+    tokens->capacity = 0;
+    tokens->count = 0;
+    tokens->list = NULL;
+}
+
+void tokens_init_tokens(Tokens *tokens, size_t start_at)
+{
+    while (start_at < tokens->capacity) token_init(tokens->list + start_at++);
+}
+
+void tokens_print(Tokens *tokens)
+{
+    for (size_t i = 0; i < tokens->count; i++) token_print(tokens->list + i);
+}
+
+void tokens_delete(Tokens *tokens)
+{
+    for (size_t i = 0; i < tokens->count; i++) token_delete(tokens->list + i);
     free(tokens->list);
 }
 
-void lexer_delete_token(Token *token)
+void token_init(Token *token)
 {
-    free(token->string);
+    token->col = 0;
+    token->line = 0;
+    token->string = NULL;
+    token->type = 0;
 }
 
-void print_tokens(Tokens *tokens)
-{
-    for (size_t i = 0; i < tokens->count; i++) print_token(&tokens->list[i]);
-}
-
-void print_token(Token *token)
+void token_print(Token *token)
 {
     printf("{ type: %s, string: %s }\n", token_names[token->type], token->string);
+}
+
+void token_delete(Token *token)
+{
+    free(token->string);
 }
 
 #undef IS_NUMBER

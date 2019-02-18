@@ -61,7 +61,7 @@ int red_printf(const char *format, ...)
 // XXX | source_line
 //
 // Hint: hint
-void error(ErrorType error, const char *file, uint32_t line, uint32_t col, const char *hint)
+void show_error(ErrorType error, const char *file, uint32_t line, uint32_t col, const char *hint)
 {
     // Output the first line.
     red_printf("\n -- %s --------------- %s at line %d\n", error_get_string(error), file, line);

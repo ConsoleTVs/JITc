@@ -10,6 +10,6 @@ typedef enum {
 } ErrorType;
 
 int red_printf(const char *format, ...);
-void error(ErrorType error, const char *file, uint32_t line, uint32_t col, const char *hint);
+void show_error(ErrorType error, const char *file, uint32_t line, uint32_t col, const char *hint);
 
 #endif

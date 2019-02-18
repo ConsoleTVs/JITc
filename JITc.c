@@ -40,10 +40,18 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
+    // Initialize the lexer
     Lexer lexer;
     lexer_init_file(&lexer, argv[1]);
+    // Initialize the tokens
     Tokens tokens;
+    tokens_init(&tokens);
+    // Scan all the tokens.
     lexer_scan_all(&lexer, &tokens);
-    print_tokens(&tokens);
+    tokens_print(&tokens);
+
+    // Initialize the parser.
+    Parser parser;
+    parser_init(&parser, argv[1]);
     return 0;
 }
